@@ -12,20 +12,26 @@
 
 | Property | Value |
 |---|---|
-| CPU model | |
-| Number of cores / threads | |
-| Base / Boost clock speed (GHz) | |
-| SIMD ISA (SSE4.2 / AVX2 / AVX-512 …) | |
-| SIMD width (bits / floats per vector) | |
-| MAC units per core | |
-| L1 cache size (per core) | |
-| L2 cache size (per core) | |
-| L3 cache size (shared) | |
-| Peak theoretical throughput (GFLOP/s) | |
+| CPU model | CPU — Intel Core Ultra 7 265KF (Arrow Lake) |
+| Number of cores / threads | 20 cores, 20 threads (8 P-cores + 12 E-cores, no HT) |
+| Base / Boost clock speed (GHz) | P-core: 3.9 / 5.5 GHz · E-core: 3.3 / 4.6 GHz |
+| SIMD ISA (SSE4.2 / AVX2 / AVX-512 …) | AVX2 (+ AVX-VNNI, VAES, GFNI — no AVX-512) |
+| SIMD width (bits / floats per vector) | 256 bits / 8 × FP32 per vector |
+| MAC units per core | 2 FMA units (256-bit each), both P- and E-cores |
+| L1 cache size (per core) | P-core: 48 KB d + 64 KB i · E-core: 32 KB d + 64 KB i |
+| L2 cache size (per core) | P-core: 3 MB (private) · E-core: 4 MB per cluster of 4 (1 MB/core) |
+| L3 cache size (shared) | 30 MB (all cores) |
+| Peak theoretical throughput (GFLOP/s) | ~3,174 GFLOP/s FP32 (3.17 TFLOP/s)|
 
 **How did you calculate peak throughput?**
 
 _(formula: cores × clock × SIMD_width × MACs_per_cycle)_
+                         
+  - Formula: cores × boost_GHz × 2 FMA_units × 8 FP32/vector × 2 ops/FMA                                                                                                             
+  - P-cores: 8 × 5.5 × 32 = 1,408 GFLOP/s                                                                                                                                              
+  - E-cores: 12 × 4.6 × 32 = 1,766 GFLOP/s                                                                                                                                           
+  - This assumes sustained all-core max-turbo, which is the theoretical ceiling — real sustained throughput will be lower due to thermal/power limits.                                 
+
 
 ---
 
