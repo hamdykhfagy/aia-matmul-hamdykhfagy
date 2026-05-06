@@ -1,6 +1,6 @@
 # ─── Makefile for Lab 1: Matrix Multiplication on CPU ───────────────────────
 CC = gcc
-CFLAGS = -O3
+CFLAGS = -O3 -march=native -ffast-math -funroll-loops -fopenmp
 LDFLAGS = -lm #-lpthread
 
 # Targets

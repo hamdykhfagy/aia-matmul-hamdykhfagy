@@ -1,12 +1,28 @@
 import time
 import torch
 
-SIZE = 1024
-x = torch.randn(SIZE, SIZE)
-y = torch.randn(SIZE, SIZE)
+devices = ["cpu"]
+if torch.cuda.is_available():
+    devices.append("cuda")
 
-start = time.perf_counter()
-for _ in range(100):
-    z = torch.mm(x, y)
-end = time.perf_counter()
-print(f"mm avg time(torch): {(end - start) * 1000 / 100:.3f} ms")
+for device in devices:
+    print(f"\n--- {device.upper()} ---")
+    for SIZE in [1024, 4096]:
+        x = torch.randn(SIZE, SIZE, device=device)
+        y = torch.randn(SIZE, SIZE, device=device)
+
+        # warmup
+        _ = torch.mm(x, y)
+        if device == "cuda":
+            torch.cuda.synchronize()
+
+        start = time.perf_counter()
+        for _ in range(10):
+            z = torch.mm(x, y)
+        if device == "cuda":
+            torch.cuda.synchronize()
+        end = time.perf_counter()
+
+        avg_ms = (end - start) * 1000 / 10
+        gflops = 2 * SIZE**3 / (avg_ms / 1000) / 1e9
+        print(f"N={SIZE:5d}  avg={avg_ms:.2f} ms  {gflops:.1f} GFLOP/s")

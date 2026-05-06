@@ -16,9 +16,9 @@
 #include <tgmath.h>
 #include <time.h>
 
-#define num_threads 4
+#define NUM_THREADS 2
 const int num_iterations = 4;
-#define JB 64 //Tile size divides matrix size
+#define JB 256 //Tile size divides matrix size
 
 // ============================================================================
 // IMPLEMENTATION 1: NAIVE MATRIX MULTIPLICATION
@@ -36,11 +36,39 @@ void matmul_naive(const float* A, const float* B, float* C, int M, int N, int K)
 }
 
 // ============================================================================
-// IMPLEMENTATION 2: -03 -ffmastmath, does loop unrolling and vectorization, reorder k,j
+// IMPLEMENTATION 2: loop orderings
 // ============================================================================
+static void matmul_ikj(const float* A, const float* B, float* C, int M, int N, int K) {
+    for (int i = 0; i < M; i++)
+        for (int k = 0; k < K; k++) {
+            float a = A[i * K + k];
+            #pragma omp simd
+            for (int j = 0; j < N; j++)
+                C[i * N + j] += a * B[k * N + j];
+        }
+}
+
+static void matmul_jki(const float* A, const float* B, float* C, int M, int N, int K) {
+    for (int j = 0; j < N; j++)
+        for (int k = 0; k < K; k++) {
+            float b = B[k * N + j];
+            for (int i = 0; i < M; i++)
+                C[i * N + j] += A[i * K + k] * b;
+        }
+}
+
+static void matmul_kij(const float* A, const float* B, float* C, int M, int N, int K) {
+    for (int k = 0; k < K; k++)
+        for (int i = 0; i < M; i++) {
+            float a = A[i * K + k];
+            for (int j = 0; j < N; j++)
+                C[i * N + j] += a * B[k * N + j];
+        }
+}
+
 void matmul_looporder(const float* A, const float* B, float* C, int M, int N, int K) {
     /* TODO: implement your best loop ordering here, replace below*/
-    matmul_naive (A, B, C, M, N, K);
+    matmul_ikj(A, B, C, M, N, K);
 }
 
 // ============================================================================
@@ -48,8 +76,22 @@ void matmul_looporder(const float* A, const float* B, float* C, int M, int N, in
 // ============================================================================
 
 void matmul_looptiling(const float* A, const float* B, float* C, int M, int N, int K) {
-    /* TODO: implement loop-tiled matrix multiplication */
-    matmul_naive (A, B, C, M, N, K);
+    for (int i = 0; i < M; i += JB) {
+        int i_end = i + JB < M ? i + JB : M;
+        for (int k = 0; k < K; k += JB) {
+            int k_end = k + JB < K ? k + JB : K;
+            for (int j = 0; j < N; j += JB) {
+                int j_end = j + JB < N ? j + JB : N;
+                for (int ii = i; ii < i_end; ii++)
+                    for (int kk = k; kk < k_end; kk++) {
+                        float a = A[ii * K + kk];
+                        #pragma omp simd
+                        for (int jj = j; jj < j_end; jj++)
+                            C[ii * N + jj] += a * B[kk * N + jj];
+                    }
+            }
+        }
+    }
 }
 
 // ============================================================================
@@ -57,8 +99,23 @@ void matmul_looptiling(const float* A, const float* B, float* C, int M, int N, i
 // ============================================================================
 void matmul_parallel_ikj(const float* A, const float* B, float* C,
                          int M, int N, int K) {
-    /* TODO: combine a tiling with thread parallelism */
-    matmul_naive (A, B, C, M, N, K);
+    #pragma omp parallel for num_threads(NUM_THREADS) schedule(static)
+    for (int i = 0; i < M; i += JB) {
+        int i_end = i + JB < M ? i + JB : M;
+        for (int k = 0; k < K; k += JB) {
+            int k_end = k + JB < K ? k + JB : K;
+            for (int j = 0; j < N; j += JB) {
+                int j_end = j + JB < N ? j + JB : N;
+                for (int ii = i; ii < i_end; ii++)
+                    for (int kk = k; kk < k_end; kk++) {
+                        float a = A[ii * K + kk];
+                        #pragma omp simd
+                        for (int jj = j; jj < j_end; jj++)
+                            C[ii * N + jj] += a * B[kk * N + jj];
+                    }
+            }
+        }
+    }
 }
 
 // ============================================================================
@@ -116,7 +173,7 @@ int main(int argc, char *argv[]) {
     srand(42);
     printf("MatMul Benchmark: Square Matrix\n");
 
-    int sizes[] = {512, 256, 128, 64};
+    int sizes[] = {4096};
     int n = sizeof(sizes) / sizeof(sizes[0]);
 
     printf("%-8s %-15s %-15s %-15s %-15s\n", "Size", "Naive", "Reordered", "Tiled", "Parallel");
@@ -132,32 +189,27 @@ int main(int argc, char *argv[]) {
         initialize_matrix(A, M, K);
         initialize_matrix(B, K, N);
 
-        // --- 1. Naive ---
-        memset(C, 0, M * N * sizeof(float));
+        // // --- 1. Naive ---
+        // memset(C, 0, M * N * sizeof(float));
+        // float t_naive = benchmark(matmul_naive, A, B, C, M, N, K);
+        // double g_naive = calculate_gflops(M, N, K, t_naive);
 
-        float t_naive = benchmark(matmul_naive, A, B, C, M, N, K);
-        double g_naive = calculate_gflops(M, N, K, t_naive);
+        // // --- 2. Tiled ---
+        // memset(C, 0, M * N * sizeof(float));
+        // float t_blocking = benchmark(matmul_looptiling, A, B, C, M, N, K);
+        // double g_blocking = calculate_gflops(M, N, K, t_blocking);
 
-        // --- 2. Tiled ---
-        memset(C, 0, M * N * sizeof(float));
-
-        float t_blocking = benchmark(matmul_looptiling, A, B, C, M, N, K);
-        double g_blocking = calculate_gflops(M, N, K, t_blocking);
-
-        // --- 3. Reordered ---
-        memset(C, 0, M * N * sizeof(float));
-
-        float t_reorder = benchmark(matmul_looporder, A, B, C, M, N, K);
-        double g_reorder = calculate_gflops(M, N, K, t_reorder);
+        // // --- 3. Reordered ---
+        // memset(C, 0, M * N * sizeof(float));
+        // float t_reorder = benchmark(matmul_looporder, A, B, C, M, N, K);
+        // double g_reorder = calculate_gflops(M, N, K, t_reorder);
 
         // --- 4. Parallel ---
         memset(C, 0, M * N * sizeof(float));
-
         float t_parallel = benchmark(matmul_parallel_ikj, A, B, C, M, N, K);
         double g_parallel = calculate_gflops(M, N, K, t_parallel);
 
-        printf("%d\t%.2f GFLOPS\t%.2f GFLOPS\t%.2f GFLOPS\t%.2f GFLOPS\n",
-               M, g_naive, g_reorder, g_blocking, g_parallel);
+        printf("%d\t%.2f GFLOPS\n", M, g_parallel);
 
         free(A); free(B); free(C);
     }
