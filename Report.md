@@ -119,6 +119,9 @@ _(Explain in terms of spatial locality and cache reuse of A, B, and C)_
 | Best optimised C | 463.89 | 31.2% |
 | PyTorch (CPU) | 1487.6 | 100% |
 | PyTorch (GPU) | 23074.9 | XL% |
+| PyTorch (CPU - 1 thread) | 154.3 | -- |
+| best optimized (CPU - 1 thread) | 30.69 | -- |
+
 
 **What is the gap and why does it exist?**
 
